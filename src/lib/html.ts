@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify';
+import sanitize from 'sanitize-html';
 
 /** Plain-text length/preview for HTML produced by the rich text editor. */
 export function stripHtml(html: string): string {
@@ -14,8 +14,8 @@ export function stripHtml(html: string): string {
 
 /** Sanitizes rich text editor output before rendering with dangerouslySetInnerHTML. */
 export function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
+  return sanitize(html, {
+    allowedTags: [
       'p',
       'strong',
       'em',
@@ -30,6 +30,12 @@ export function sanitizeHtml(html: string): string {
       'blockquote',
       'code',
     ],
-    ALLOWED_ATTR: ['href', 'rel', 'target', 'style'],
+    allowedAttributes: {
+      '*': ['style'],
+      a: ['href', 'rel', 'target'],
+    },
+    allowedStyles: {
+      '*': { 'text-align': [/^(left|right|center|justify)$/] },
+    },
   });
 }
