@@ -1,5 +1,6 @@
 'use server';
 
+import { siteUrl } from '@/lib/site-url';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
@@ -35,7 +36,7 @@ export async function createStaffAccount(input: CreateStaffAccountInput): Promis
   const { name, email, role, isReviewer } = parsed.data;
 
   const admin = createAdminClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = siteUrl;
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { name },
     redirectTo: `${appUrl}/auth/confirm?next=/reset-password`,

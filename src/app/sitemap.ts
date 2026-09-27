@@ -1,7 +1,6 @@
+import { siteUrl } from '@/lib/site-url';
 import type { MetadataRoute } from 'next';
 import { getAllContentItems } from '@/lib/mock-data/content';
-
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 const STATIC_ROUTES: {
   path: string;

@@ -1,3 +1,4 @@
+import { siteUrl } from '@/lib/site-url';
 import type { Metadata } from 'next';
 import { Geist, Source_Serif_4, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/layout/theme-provider';
@@ -23,10 +24,9 @@ const mono = Geist_Mono({
   display: 'swap',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 const siteName = 'National Road Fund Research Library';
 const siteDescription =
-  'The National Road Fund of Liberia research portal for road, transport, and infrastructure data.';
+  'The National Road Fund of Liberia research and data library for road, transport, and infrastructure data.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
