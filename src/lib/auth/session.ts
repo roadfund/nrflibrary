@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { User } from '@/lib/types';
+import { isVerificationOverdue } from './email-verification';
 
 /**
  * Canonical session accessor. Every server component, route handler, and
@@ -16,7 +17,7 @@ import type { User } from '@/lib/types';
  * `cache()` so every caller in one request shares a single call instead of
  * each paying that round trip again.
  */
-export const getSession = cache(async (): Promise<{ user: User } | null> => {
+export const getSessionIncludingUnverified = cache(async (): Promise<{ user: User } | null> => {
   const supabase = await createClient();
   const {
     data: { user: authUser },
@@ -40,10 +41,16 @@ export const getSession = cache(async (): Promise<{ user: User } | null> => {
       institutionId: profile.institution_id,
       organization: profile.organization,
       fieldOfStudy: profile.field_of_study,
-      emailVerified: Boolean(authUser.email_confirmed_at),
+      emailVerified: Boolean(profile.email_verified_at),
       active: profile.active,
       createdAt: profile.created_at,
       lastLoginAt: profile.last_login_at,
     },
   };
+});
+
+export const getSession = cache(async (): Promise<{ user: User } | null> => {
+  const session = await getSessionIncludingUnverified();
+  if (!session || isVerificationOverdue(session.user)) return null;
+  return session;
 });

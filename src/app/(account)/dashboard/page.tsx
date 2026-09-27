@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, FileSearch, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { AccountShell } from '@/components/layout/account-shell';
+import { EmailVerificationBanner } from '@/components/auth/email-verification-banner';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatTile, StatTileGrid } from '@/components/shared/stat-tile';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -59,6 +60,8 @@ export default async function DashboardPage() {
         title={institution ? institution.name : `Welcome back, ${user.name.split(' ')[0]}`}
         description={institution ? 'Institution dashboard' : undefined}
       />
+
+      <EmailVerificationBanner user={user} />
 
       {institution ? (
         institution.verified ? (

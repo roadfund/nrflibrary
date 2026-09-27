@@ -1,5 +1,6 @@
 'use server';
 
+import { siteUrl } from '@/lib/site-url';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAccountHomeHref } from '@/lib/navigation';
@@ -9,7 +10,13 @@ import {
   type SignInInput,
   type CreateAccountInput,
 } from '@/lib/validation/account';
-import type { User } from '@/lib/types';
+import {
+  createProfileRecords,
+  ensureProfileFromSignup,
+  signupDetailsSchema,
+} from '@/lib/auth/signup-profile';
+import { isVerificationOverdue } from '@/lib/auth/email-verification';
+import { sendVerificationEmail } from '@/lib/auth/verification-email';
 
 export interface AuthResult {
   success: boolean;
@@ -32,9 +39,11 @@ export async function signIn(input: SignInInput): Promise<AuthResult> {
     return { success: false, message: 'No account found with that email and password.' };
   }
 
+  await ensureProfileFromSignup(supabase, data.user);
+
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, name, active')
+    .select('role, name, active, email_verified_at, created_at')
     .eq('id', data.user.id)
     .single();
 
@@ -59,7 +68,12 @@ export async function signIn(input: SignInInput): Promise<AuthResult> {
   return {
     success: true,
     message: `Welcome back, ${profile.name.split(' ')[0]}.`,
-    redirectTo: getAccountHomeHref(profile.role),
+    redirectTo: isVerificationOverdue({
+      emailVerified: Boolean(profile.email_verified_at),
+      createdAt: profile.created_at,
+    })
+      ? '/verify-email'
+      : getAccountHomeHref(profile.role),
   };
 }
 
@@ -74,9 +88,14 @@ export async function createAccount(input: CreateAccountInput): Promise<AuthResu
   const data = parsed.data;
   const supabase = await createClient();
 
+  const details = signupDetailsSchema.parse(data);
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email: data.email,
     password: data.password,
+    options: {
+      emailRedirectTo: `${siteUrl}/auth/confirm?next=/dashboard`,
+      data: { signup: details },
+    },
   });
   if (signUpError) {
     const message = signUpError.message.toLowerCase().includes('already registered')
@@ -101,60 +120,17 @@ export async function createAccount(input: CreateAccountInput): Promise<AuthResu
     };
   }
 
-  let institutionId: string | null = null;
-  let role: User['role'] = data.accountType === 'RESEARCHER' ? 'RESEARCHER' : 'STUDENT';
-
-  if (data.accountType === 'INSTITUTION') {
-    role = 'INSTITUTION_ADMIN';
-    const { data: institution, error: institutionError } = await supabase
-      .from('institutions')
-      .insert({
-        name: data.institutionName!,
-        type: data.institutionType!,
-        country: data.institutionCountry!,
-      })
-      .select('id')
-      .single();
-    if (institutionError || !institution) {
-      return {
-        success: false,
-        message: institutionError?.message ?? 'Could not register your institution.',
-      };
-    }
-    institutionId = institution.id;
-
-    const { error: memberError } = await supabase.from('institution_members').insert({
-      institution_id: institutionId,
-      user_id: authUser.id,
-      email: data.email,
-      name: data.name,
-      role: 'INSTITUTION_ADMIN',
-      status: 'ACTIVE',
-      joined_at: new Date().toISOString(),
-    });
-    if (memberError) {
-      return { success: false, message: memberError.message };
-    }
+  const result = await createProfileRecords(supabase, authUser.id, details);
+  if ('error' in result) {
+    return { success: false, message: result.error };
   }
 
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: authUser.id,
-    email: data.email,
-    name: data.name,
-    role,
-    institution_id: institutionId,
-    organization:
-      data.accountType === 'INSTITUTION' ? data.institutionName! : (data.organization ?? null),
-    field_of_study: data.fieldOfStudy ?? null,
-  });
-  if (profileError) {
-    return { success: false, message: profileError.message };
-  }
+  await sendVerificationEmail(supabase, data.email);
 
   return {
     success: true,
-    message: 'Account created. Welcome to the National Road Fund Research Library.',
-    redirectTo: getAccountHomeHref(role),
+    message: 'Account created. Check your email to confirm your address.',
+    redirectTo: getAccountHomeHref(result.role),
   };
 }
 
@@ -175,9 +151,8 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   }
 
   const supabase = await createClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
-    redirectTo: `${appUrl}/auth/confirm?next=/reset-password`,
+    redirectTo: `${siteUrl}/auth/confirm?next=/reset-password`,
   });
 
   // Supabase itself never reveals whether the email matched an account, to

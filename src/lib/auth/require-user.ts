@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import type { Role } from '@/lib/types';
 import { isInstitutionRole, isStaffRole } from '@/lib/types/roles';
-import { getSession } from './session';
+import { getSession, getSessionIncludingUnverified } from './session';
 
 interface RequireUserOptions {
   roles?: Role[];
@@ -18,6 +18,7 @@ export async function requireUser(options: RequireUserOptions = {}) {
   const session = await getSession();
 
   if (!session) {
+    if (await getSessionIncludingUnverified()) redirect('/verify-email');
     const next = options.redirectTo ?? '/sign-in';
     redirect(next);
   }

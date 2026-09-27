@@ -34,6 +34,7 @@ export interface Database {
           active: boolean;
           created_at: string;
           last_login_at: string | null;
+          email_verified_at: string | null;
         };
         Insert: {
           id: string;
@@ -47,6 +48,7 @@ export interface Database {
           active?: boolean;
           created_at?: string;
           last_login_at?: string | null;
+          email_verified_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];
