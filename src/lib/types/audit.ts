@@ -1,0 +1,40 @@
+export const AUDIT_ACTIONS = [
+  'CONTENT_CREATED',
+  'CONTENT_UPDATED',
+  'CONTENT_FILE_REPLACED',
+  'CONTENT_SUBMITTED_FOR_REVIEW',
+  'CONTENT_APPROVED',
+  'CONTENT_CHANGES_REQUESTED',
+  'CONTENT_REJECTED',
+  'CONTENT_PUBLISHED',
+  'CONTENT_ARCHIVED',
+  'ACCESS_REQUEST_SUBMITTED',
+  'ACCESS_REQUEST_APPROVED',
+  'ACCESS_REQUEST_DECLINED',
+  'ACCESS_REQUEST_NEEDS_INFO',
+  'STAFF_ACCOUNT_CREATED',
+  'USER_ROLE_CHANGED',
+  'USER_SUSPENDED',
+  'USER_REACTIVATED',
+  'INSTITUTION_VERIFIED',
+  'INSTITUTION_MEMBER_INVITED',
+  'INSTITUTION_MEMBER_REMOVED',
+  'SUBSCRIPTION_PLAN_CHANGED',
+  'SUBSCRIPTION_CANCELED',
+  'PLATFORM_SETTING_CHANGED',
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: AuditAction;
+  targetType: string;
+  targetId: string;
+  targetLabel: string;
+  detail: string;
+  createdAt: string;
+}

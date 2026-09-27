@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# testing
+/playwright-report/
+/test-results/
+
+# local file storage (dev uploads)
+/.data/uploads
+
+!.env.example
+
+/.agents/
+.claude/settings.local.json
+/supabase/
+/scripts/
