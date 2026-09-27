@@ -47,9 +47,11 @@ next-env.d.ts
 # local file storage (dev uploads)
 /.data/uploads
 
-!.env.example
 
 /.agents/
-.claude/settings.local.json
 /supabase/
 /scripts/
+/.claude/
+/AGENTS.md
+/CLAUDE.md
+/skills-lock.json
