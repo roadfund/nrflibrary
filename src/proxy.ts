@@ -1,7 +1,14 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 export async function proxy(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === '/' && searchParams.has('error_code')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/sign-in';
+    url.search = '?error=invalid-link';
+    return NextResponse.redirect(url);
+  }
   return updateSession(request);
 }
 

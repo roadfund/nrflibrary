@@ -123,8 +123,15 @@ export function CreateAccountWizard({ onClose }: { onClose?: () => void }) {
 
   async function onSubmit(values: CreateAccountInput) {
     setIsPending(true);
-    const result = await createAccount(values);
-    setIsPending(false);
+    let result: Awaited<ReturnType<typeof createAccount>>;
+    try {
+      result = await createAccount(values);
+    } catch {
+      toast.error('Something went wrong. Refresh the page and try again.');
+      return;
+    } finally {
+      setIsPending(false);
+    }
     if (result.success) {
       toast.success(result.message);
       onClose?.();
