@@ -15,9 +15,8 @@ export function EmailVerificationBanner({ user }: { user: User }) {
       <AlertDescription>
         <p>
           We sent a confirmation link to {user.email}. Confirm it by{' '}
-          {formatDateShort(getVerificationDeadline(user.createdAt).toISOString())} to keep signing
-          in, viewing protected content, downloading, requesting data, and managing your
-          subscription.
+          {formatDateShort(getVerificationDeadline(user.createdAt).toISOString())} to keep access to
+          your account.
         </p>
         <ResendVerificationButton className="mt-3" />
       </AlertDescription>
