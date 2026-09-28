@@ -6,6 +6,7 @@ import type {
   SubscriptionStatus,
   PaymentMethodType,
   InvoiceStatus,
+  GrantCategory,
 } from '@/lib/types/plan';
 import type { ContentType, FileFormat, AccessLevel, ContentStatus } from '@/lib/types/content';
 import type { AccessRequestStatus } from '@/lib/types/access-request';
@@ -156,6 +157,9 @@ export interface Database {
           current_period_end: string;
           cancel_at_period_end: boolean;
           created_at: string;
+          granted_by: string | null;
+          grant_category: GrantCategory | null;
+          grant_note: string | null;
         };
         Insert: {
           id: string;
@@ -173,6 +177,9 @@ export interface Database {
           current_period_end: string;
           cancel_at_period_end?: boolean;
           created_at?: string;
+          granted_by?: string | null;
+          grant_category?: GrantCategory | null;
+          grant_note?: string | null;
         };
         Update: Partial<Database['public']['Tables']['subscriptions']['Insert']>;
         Relationships: [];
@@ -381,7 +388,7 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
-          content_item_id: string;
+          content_item_id: string | null;
           content_title: string;
           version_number: number;
           downloaded_at: string;

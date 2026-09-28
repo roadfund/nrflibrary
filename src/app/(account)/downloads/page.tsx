@@ -23,7 +23,9 @@ export const metadata: Metadata = { title: 'My downloads' };
 export default async function DownloadsPage() {
   const { user } = await requireAccountUser();
   const downloads = await getDownloadsForUser(user.id);
-  const items = await getContentByIds(downloads.map((record) => record.contentItemId));
+  const items = await getContentByIds(
+    downloads.flatMap((record) => (record.contentItemId ? [record.contentItemId] : [])),
+  );
   const itemsById = new Map(items.map((item) => [item.id, item]));
 
   return (
@@ -55,7 +57,7 @@ export default async function DownloadsPage() {
             </TableHeader>
             <TableBody>
               {downloads.map((record) => {
-                const item = itemsById.get(record.contentItemId);
+                const item = record.contentItemId ? itemsById.get(record.contentItemId) : undefined;
                 return (
                   <TableRow key={record.id}>
                     <TableCell className="text-foreground font-medium">

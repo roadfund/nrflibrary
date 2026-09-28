@@ -10,6 +10,7 @@ import {
   publishContentDraft,
   decideContentReview,
   archiveContentItem,
+  restoreContentItem,
   type ReviewDecision,
 } from '@/lib/mock-data/content-mutations';
 import type { ContentStatus } from '@/lib/types';
@@ -153,6 +154,33 @@ export function ArchiveButton({
       }
     >
       Archive
+    </Button>
+  );
+}
+
+export function RestoreButton({
+  contentItemId,
+  status,
+}: {
+  contentItemId: string;
+  status: ContentStatus;
+}) {
+  const [isPending, startTransition] = useTransition();
+  if (status !== 'ARCHIVED') return null;
+
+  return (
+    <Button
+      variant="outline"
+      loading={isPending}
+      onClick={() =>
+        startTransition(async () => {
+          const result = await restoreContentItem(contentItemId);
+          if (result.success) toast.success(result.message);
+          else toast.error(result.message);
+        })
+      }
+    >
+      Restore to catalogue
     </Button>
   );
 }

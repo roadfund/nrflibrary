@@ -17,7 +17,14 @@ function toSubscription(row: {
   current_period_end: string;
   cancel_at_period_end: boolean;
   created_at: string;
+  granted_by: string | null;
+  grant_category: Subscription['grantCategory'];
+  grant_note: string | null;
 }): Subscription {
+  const grantExpired =
+    row.granted_by !== null &&
+    row.status === 'ACTIVE' &&
+    new Date(row.current_period_end) <= new Date();
   return {
     id: row.id,
     ownerType: row.owner_type,
@@ -25,7 +32,7 @@ function toSubscription(row: {
     planId: row.plan_id,
     planCode: row.plan_code,
     billingInterval: row.billing_interval,
-    status: row.status,
+    status: grantExpired ? 'EXPIRED' : row.status,
     seats: row.seats,
     seatsUsed: row.seats_used,
     paymentMethodType: row.payment_method_type,
@@ -34,6 +41,9 @@ function toSubscription(row: {
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
     createdAt: row.created_at,
+    grantedBy: row.granted_by,
+    grantCategory: row.grant_category,
+    grantNote: row.grant_note,
   };
 }
 
@@ -91,4 +101,14 @@ export async function getInvoicesBySubscription(subscriptionId: string): Promise
     .eq('subscription_id', subscriptionId)
     .order('issued_at', { ascending: false });
   return (data ?? []).map(toInvoice);
+}
+
+export async function getGrantedSubscriptions(): Promise<Subscription[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .not('granted_by', 'is', null)
+    .order('current_period_end', { ascending: false });
+  return (data ?? []).map(toSubscription);
 }

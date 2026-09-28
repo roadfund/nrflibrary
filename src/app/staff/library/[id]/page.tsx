@@ -8,9 +8,11 @@ import {
   PublishDirectlyButton,
   ReviewActions,
   ArchiveButton,
+  RestoreButton,
 } from '@/components/staff/workflow-actions';
 import { ReplaceFileForm } from '@/components/staff/replace-file-form';
 import { MetadataList } from '@/components/shared/metadata-list';
+import { DeleteContentDialog } from '@/components/staff/delete-content-dialog';
 import { requireStaff } from '@/lib/auth';
 import { getContentById, getVersionsForContent } from '@/lib/mock-data/content';
 import { formatBytes, formatDateTime } from '@/lib/format';
@@ -78,6 +80,7 @@ export default async function ContentEditorPage({ params }: PageProps<'/staff/li
                 <ReviewActions contentItemId={item.id} canReview={canReview} />
               ) : null}
               <ArchiveButton contentItemId={item.id} status={item.status} />
+              <RestoreButton contentItemId={item.id} status={item.status} />
               {item.reviewNote ? (
                 <div className="bg-muted/50 text-foreground rounded-md p-3 text-sm">
                   <p className="font-medium">Last reviewer note</p>
@@ -143,6 +146,34 @@ export default async function ContentEditorPage({ params }: PageProps<'/staff/li
                 ]}
               />
             </div>
+          </div>
+          <div className="border-destructive/30 rounded-md border p-4">
+            <h3 className="text-foreground text-sm font-semibold">Delete</h3>
+            {(() => {
+              const wasPublished = item.status === 'PUBLISHED' || item.status === 'ARCHIVED';
+              if (wasPublished && user.role !== 'SUPER_ADMIN') {
+                return (
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    Only a super admin can delete published or archived content. Archive it to hide
+                    it from the catalogue.
+                  </p>
+                );
+              }
+              return (
+                <>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    Permanently removes this item and all of its file versions.
+                  </p>
+                  <div className="mt-3">
+                    <DeleteContentDialog
+                      contentItemId={item.id}
+                      title={item.title}
+                      wasPublished={wasPublished}
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </aside>
       </div>

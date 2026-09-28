@@ -48,6 +48,26 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   EXPIRED: 'Expired',
 };
 
+export const GRANT_CATEGORIES = [
+  'PARTNER',
+  'STUDENT',
+  'RESEARCHER',
+  'GOVERNMENT',
+  'STAFF_COURTESY',
+  'OTHER',
+] as const;
+
+export type GrantCategory = (typeof GRANT_CATEGORIES)[number];
+
+export const GRANT_CATEGORY_LABELS: Record<GrantCategory, string> = {
+  PARTNER: 'Partner',
+  STUDENT: 'Student',
+  RESEARCHER: 'Researcher',
+  GOVERNMENT: 'Government',
+  STAFF_COURTESY: 'Staff courtesy',
+  OTHER: 'Other',
+};
+
 export interface Subscription {
   id: string;
   ownerType: 'USER' | 'INSTITUTION';
@@ -64,6 +84,9 @@ export interface Subscription {
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
   createdAt: string;
+  grantedBy: string | null;
+  grantCategory: GrantCategory | null;
+  grantNote: string | null;
 }
 
 export const INVOICE_STATUSES = ['PAID', 'OPEN', 'FAILED', 'VOID'] as const;

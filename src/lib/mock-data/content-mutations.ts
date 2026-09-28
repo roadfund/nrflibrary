@@ -473,6 +473,115 @@ export async function archiveContentItem(id: string): Promise<ActionResult> {
   return { success: true, message: 'Content archived.' };
 }
 
+export async function restoreContentItem(id: string): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session || !isStaffRole(session.user.role)) {
+    return { success: false, message: 'Only Road Fund staff can restore content.' };
+  }
+  const supabase = await createClient();
+
+  const { data: item, error } = await supabase
+    .from('content_items')
+    .update({ status: 'PUBLISHED', archived_at: null, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('status', 'ARCHIVED')
+    .select('id, title')
+    .maybeSingle();
+  if (error || !item) {
+    return { success: false, message: error?.message ?? 'Only archived content can be restored.' };
+  }
+
+  await logAudit({
+    actorId: session.user.id,
+    actorName: session.user.name,
+    actorRole: session.user.role,
+    action: 'CONTENT_RESTORED',
+    targetType: 'ContentItem',
+    targetId: item.id,
+    targetLabel: item.title,
+    detail: 'Restored from archive and republished.',
+  });
+  revalidatePath(`/staff/library/${id}`);
+  revalidatePath('/staff/library');
+  revalidatePath('/catalogue');
+  return { success: true, message: 'Content restored to the catalogue.' };
+}
+
+export async function deleteContentItem(id: string, confirmTitle?: string): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session || !isStaffRole(session.user.role)) {
+    return { success: false, message: 'Only Road Fund staff can delete content.' };
+  }
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('content_items')
+    .select('id, title, status, storage_bucket, storage_path')
+    .eq('id', id)
+    .maybeSingle();
+  if (!item) return { success: false, message: 'Content item not found.' };
+
+  const wasPublished = item.status === 'PUBLISHED' || item.status === 'ARCHIVED';
+  if (wasPublished && session.user.role !== 'SUPER_ADMIN') {
+    return {
+      success: false,
+      message: 'Only a super admin can delete published or archived content. Archive it instead.',
+    };
+  }
+  if (wasPublished && confirmTitle?.trim() !== item.title.trim()) {
+    return { success: false, message: 'Type the exact title to confirm deletion.' };
+  }
+
+  const { data: versions } = await supabase
+    .from('content_versions')
+    .select('storage_bucket, storage_path')
+    .eq('content_item_id', id);
+
+  const filesByBucket = new Map<string, Set<string>>();
+  for (const file of [item, ...(versions ?? [])]) {
+    if (!file.storage_bucket || !file.storage_path) continue;
+    const paths = filesByBucket.get(file.storage_bucket) ?? new Set<string>();
+    paths.add(file.storage_path);
+    filesByBucket.set(file.storage_bucket, paths);
+  }
+
+  const { data: deleted, error } = await supabase
+    .from('content_items')
+    .delete()
+    .eq('id', id)
+    .select('id');
+  if (error || !deleted?.length) {
+    return { success: false, message: error?.message ?? 'Could not delete this content.' };
+  }
+
+  let fileCleanupFailed = false;
+  for (const [bucket, paths] of filesByBucket) {
+    const { error: storageError } = await supabase.storage.from(bucket).remove([...paths]);
+    if (storageError) fileCleanupFailed = true;
+  }
+
+  const fileCount = [...filesByBucket.values()].reduce((n, paths) => n + paths.size, 0);
+  await logAudit({
+    actorId: session.user.id,
+    actorName: session.user.name,
+    actorRole: session.user.role,
+    action: 'CONTENT_DELETED',
+    targetType: 'ContentItem',
+    targetId: item.id,
+    targetLabel: item.title,
+    detail: `Permanently deleted (was ${item.status.toLowerCase().replace('_', ' ')}) with ${fileCount} stored file${fileCount === 1 ? '' : 's'}${fileCleanupFailed ? '; some files could not be removed from storage' : ''}.`,
+  });
+  revalidatePath('/staff/library');
+  revalidatePath('/staff/review');
+  revalidatePath('/catalogue');
+  return {
+    success: true,
+    message: fileCleanupFailed
+      ? 'Content deleted, but some stored files could not be removed.'
+      : 'Content deleted.',
+  };
+}
+
 export type AccessRequestDecision = 'APPROVE' | 'DECLINE' | 'NEEDS_INFO';
 
 export async function decideAccessRequest(

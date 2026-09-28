@@ -11,6 +11,7 @@ import {
   Users,
   Building2,
   CreditCard,
+  Gift,
   ScrollText,
   Settings,
   ExternalLink,
@@ -31,6 +32,7 @@ const ICONS: Record<string, typeof LayoutDashboard> = {
   '/staff/users': Users,
   '/staff/institutions': Building2,
   '/staff/plans': CreditCard,
+  '/staff/subscriptions': Gift,
   '/staff/audit-log': ScrollText,
   '/staff/settings': Settings,
 };

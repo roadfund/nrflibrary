@@ -57,6 +57,7 @@ export const STAFF_NAV = [
   { href: '/staff/users', label: 'Users' },
   { href: '/staff/institutions', label: 'Institutions' },
   { href: '/staff/plans', label: 'Subscription plans' },
+  { href: '/staff/subscriptions', label: 'Granted access' },
   { href: '/staff/audit-log', label: 'Audit log' },
   { href: '/staff/settings', label: 'Platform settings' },
 ] as const;

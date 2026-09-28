@@ -63,9 +63,11 @@ export default async function InstitutionBillingPage() {
                   },
                   {
                     label: 'Payment method',
-                    value: subscription.paymentMethodType
-                      ? PAYMENT_METHOD_LABELS[subscription.paymentMethodType]
-                      : '—',
+                    value: subscription.grantedBy
+                      ? 'Granted by the National Road Fund'
+                      : subscription.paymentMethodType
+                        ? PAYMENT_METHOD_LABELS[subscription.paymentMethodType]
+                        : '—',
                   },
                   ...(subscription.paymentReference
                     ? [{ label: 'Mobile money number', value: subscription.paymentReference }]
@@ -83,19 +85,29 @@ export default async function InstitutionBillingPage() {
             </div>
           </div>
 
-          <div>
-            <h2 className="text-foreground font-serif text-lg font-semibold">Manage plan</h2>
-            <div className="mt-4 max-w-xl">
-              <SubscriptionActions
-                ownerType="INSTITUTION"
-                ownerId={institution.id}
-                plans={allPlans}
-                currentPlanCode={subscription.planCode}
-                currentInterval={subscription.billingInterval}
-                cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
-              />
+          {subscription.grantedBy ? (
+            <div>
+              <h2 className="text-foreground font-serif text-lg font-semibold">Manage plan</h2>
+              <p className="text-muted-foreground mt-4 max-w-xl text-sm">
+                This access was granted by the National Road Fund and ends on{' '}
+                {formatDate(subscription.currentPeriodEnd)}. Contact the Road Fund to extend it.
+              </p>
             </div>
-          </div>
+          ) : (
+            <div>
+              <h2 className="text-foreground font-serif text-lg font-semibold">Manage plan</h2>
+              <div className="mt-4 max-w-xl">
+                <SubscriptionActions
+                  ownerType="INSTITUTION"
+                  ownerId={institution.id}
+                  plans={allPlans}
+                  currentPlanCode={subscription.planCode}
+                  currentInterval={subscription.billingInterval}
+                  cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <h2 className="text-foreground font-serif text-lg font-semibold">Invoice history</h2>

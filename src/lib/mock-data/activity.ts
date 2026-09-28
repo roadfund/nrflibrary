@@ -18,7 +18,7 @@ function toSavedItem(row: {
 function toDownloadRecord(row: {
   id: string;
   user_id: string;
-  content_item_id: string;
+  content_item_id: string | null;
   content_title: string;
   version_number: number;
   downloaded_at: string;
