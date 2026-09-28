@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Download, Eye } from 'lucide-react';
+import { Download, ExternalLink, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -72,32 +72,69 @@ export function PreviewButton({
         <Eye className="size-4" />
         {label}
       </Button>
-      <Dialog open={preview !== null} onOpenChange={(next) => !next && setPreview(null)}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Preview</DialogTitle>
-          </DialogHeader>
-          {preview ? <PreviewContent url={preview.url} fileFormat={preview.fileFormat} /> : null}
-        </DialogContent>
-      </Dialog>
+      <PreviewDialog preview={preview} onClose={() => setPreview(null)} />
     </>
+  );
+}
+
+export function PreviewDialog({
+  preview,
+  onClose,
+}: {
+  preview: { url: string; fileFormat: FileFormat } | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={preview !== null} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        className={
+          preview?.fileFormat === 'PDF'
+            ? 'flex h-dvh max-h-dvh max-w-full flex-col rounded-none p-3 sm:h-[90dvh] sm:max-w-5xl sm:rounded-xl sm:p-4'
+            : 'flex max-h-[90dvh] flex-col sm:max-w-3xl'
+        }
+      >
+        <DialogHeader className="flex-row items-center gap-3 pr-10">
+          <DialogTitle>Preview</DialogTitle>
+          {preview ? (
+            <a
+              href={preview.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground ml-auto flex items-center gap-1.5 text-sm font-medium"
+            >
+              <ExternalLink className="size-4" />
+              Open in new tab
+            </a>
+          ) : null}
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {preview ? <PreviewContent url={preview.url} fileFormat={preview.fileFormat} /> : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function PreviewContent({ url, fileFormat }: { url: string; fileFormat: FileFormat }) {
   switch (fileFormat) {
     case 'PDF':
-      return <iframe src={url} className="border-border h-[75vh] w-full rounded-md border" />;
+      return (
+        <iframe
+          src={url}
+          title="Document preview"
+          className="border-border min-h-0 w-full flex-1 rounded-md border"
+        />
+      );
     case 'PNG':
     case 'JPEG':
     case 'WEBP':
       // Short-lived signed URL - not a candidate for next/image's optimizer.
       // eslint-disable-next-line @next/next/no-img-element
-      return <img src={url} alt="" className="max-h-[75vh] w-full rounded-md object-contain" />;
+      return <img src={url} alt="" className="min-h-0 w-full flex-1 rounded-md object-contain" />;
     case 'MP3':
       return <audio controls src={url} className="w-full" />;
     case 'MP4':
-      return <video controls src={url} className="max-h-[75vh] w-full rounded-md" />;
+      return <video controls src={url} className="min-h-0 w-full flex-1 rounded-md" />;
     default:
       return null;
   }
