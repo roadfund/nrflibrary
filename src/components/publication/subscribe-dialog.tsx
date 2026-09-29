@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { CreditCard, Smartphone } from 'lucide-react';
@@ -47,13 +48,22 @@ export function SubscribeDialog({
   ownerType,
   ownerId,
   plan,
+  initialInterval = 'MONTHLY',
+  triggerLabel = 'Subscribe',
+  triggerClassName = 'w-full sm:w-auto',
+  redirectTo,
 }: {
   ownerType: 'USER' | 'INSTITUTION';
   ownerId: string;
   plan: Plan;
+  initialInterval?: BillingInterval;
+  triggerLabel?: string;
+  triggerClassName?: string;
+  redirectTo?: string;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [interval, setInterval] = useState<BillingInterval>('MONTHLY');
+  const [interval, setInterval] = useState<BillingInterval>(initialInterval);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | ''>('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -78,6 +88,8 @@ export function SubscribeDialog({
       if (result.success) {
         toast.success(result.message);
         setOpen(false);
+        if (redirectTo) router.push(redirectTo);
+        router.refresh();
       } else {
         toast.error(result.message);
       }
@@ -85,8 +97,14 @@ export function SubscribeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className="w-full sm:w-auto" />}>Subscribe</DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setInterval(initialInterval);
+        setOpen(next);
+      }}
+    >
+      <DialogTrigger render={<Button className={triggerClassName} />}>{triggerLabel}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Subscribe to {plan.name}</DialogTitle>

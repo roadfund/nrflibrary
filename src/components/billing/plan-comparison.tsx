@@ -5,10 +5,85 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SubscribeDialog } from '@/components/publication/subscribe-dialog';
 import { formatCurrency } from '@/lib/format';
 import type { BillingInterval, Plan } from '@/lib/types';
 
-export function PlanComparison({ plans }: { plans: Plan[] }) {
+export type PlanViewer =
+  | { kind: 'ANONYMOUS' }
+  | {
+      kind: 'CAN_SUBSCRIBE';
+      ownerType: 'USER' | 'INSTITUTION';
+      ownerId: string;
+      billingHref: string;
+    }
+  | { kind: 'SUBSCRIBED'; billingHref: string }
+  | { kind: 'INSTITUTION_MEMBER' }
+  | { kind: 'STAFF' };
+
+function PlanAction({
+  plan,
+  interval,
+  viewer,
+}: {
+  plan: Plan;
+  interval: BillingInterval;
+  viewer: PlanViewer;
+}) {
+  switch (viewer.kind) {
+    case 'CAN_SUBSCRIBE':
+      if (viewer.ownerType === 'USER' && plan.seatBased) {
+        return (
+          <p className="text-muted-foreground mt-6 text-center text-sm">
+            This plan is for institution accounts.
+          </p>
+        );
+      }
+      return (
+        <SubscribeDialog
+          ownerType={viewer.ownerType}
+          ownerId={viewer.ownerId}
+          plan={plan}
+          initialInterval={interval}
+          triggerLabel="Subscribe"
+          triggerClassName="mt-6 w-full"
+          redirectTo={viewer.billingHref}
+        />
+      );
+    case 'SUBSCRIBED':
+      return (
+        <Button className="mt-6" variant="outline" render={<Link href={viewer.billingHref} />}>
+          Manage subscription
+        </Button>
+      );
+    case 'INSTITUTION_MEMBER':
+      return (
+        <p className="text-muted-foreground mt-6 text-center text-sm">
+          Your institution administrator manages the subscription.
+        </p>
+      );
+    case 'STAFF':
+      return (
+        <p className="text-muted-foreground mt-6 text-center text-sm">
+          Staff accounts already have full access.
+        </p>
+      );
+    default:
+      return (
+        <Button className="mt-6" render={<Link href="/create-account" />}>
+          Get started
+        </Button>
+      );
+  }
+}
+
+export function PlanComparison({
+  plans,
+  viewer = { kind: 'ANONYMOUS' },
+}: {
+  plans: Plan[];
+  viewer?: PlanViewer;
+}) {
   const [interval, setInterval] = useState<BillingInterval>('MONTHLY');
 
   return (
@@ -48,9 +123,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
                   </li>
                 ))}
               </ul>
-              <Button className="mt-6" render={<Link href="/create-account" />}>
-                Get started
-              </Button>
+              <PlanAction plan={plan} interval={interval} viewer={viewer} />
             </div>
           );
         })}
