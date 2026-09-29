@@ -1,5 +1,6 @@
 import type { User } from '@/lib/types';
 
+export const EMAIL_VERIFICATION_ENFORCED = false;
 export const EMAIL_VERIFICATION_GRACE_DAYS = 3;
 
 export function getVerificationDeadline(createdAt: string): Date {
@@ -10,5 +11,9 @@ export function isVerificationOverdue(
   user: Pick<User, 'emailVerified' | 'createdAt'>,
   now: Date = new Date(),
 ): boolean {
-  return !user.emailVerified && now >= getVerificationDeadline(user.createdAt);
+  return (
+    EMAIL_VERIFICATION_ENFORCED &&
+    !user.emailVerified &&
+    now >= getVerificationDeadline(user.createdAt)
+  );
 }

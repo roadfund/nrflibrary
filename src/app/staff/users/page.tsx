@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import { UserRoleControl } from '@/components/staff/user-role-control';
 import { AddStaffForm } from '@/components/staff/add-staff-form';
+import { ConfirmEmailButton } from '@/components/staff/confirm-email-button';
 import { requireStaff } from '@/lib/auth';
 import { getAllProfiles } from '@/lib/mock-data/users';
 import { ROLE_LABELS } from '@/lib/types';
@@ -49,6 +50,12 @@ export default async function UsersPage() {
                 <TableCell>
                   <p className="text-foreground font-medium">{user.name}</p>
                   <p className="text-muted-foreground text-xs">{user.email}</p>
+                  {!user.emailVerified ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <Badge variant="warning">Email not confirmed</Badge>
+                      {isSuperAdmin ? <ConfirmEmailButton userId={user.id} /> : null}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(user.createdAt)}

@@ -139,6 +139,37 @@ export async function toggleUserActive(userId: string): Promise<ActionResult> {
   return { success: true, message: nextActive ? 'Account reactivated.' : 'Account suspended.' };
 }
 
+export async function confirmUserEmail(userId: string): Promise<ActionResult> {
+  const session = await requireSuperAdmin();
+  if (!session) return { success: false, message: 'Only a super admin can confirm emails.' };
+
+  const admin = createAdminClient();
+  const { data: user, error } = await admin
+    .from('profiles')
+    .update({ email_verified_at: new Date().toISOString() })
+    .eq('id', userId)
+    .is('email_verified_at', null)
+    .select('id, name, email')
+    .maybeSingle();
+  if (error) return { success: false, message: error.message };
+  if (!user) return { success: false, message: 'This email is already confirmed.' };
+
+  await admin.auth.admin.updateUserById(userId, { email_confirm: true });
+
+  await logAudit({
+    actorId: session.user.id,
+    actorName: session.user.name,
+    actorRole: session.user.role,
+    action: 'USER_EMAIL_VERIFIED',
+    targetType: 'User',
+    targetId: user.id,
+    targetLabel: user.name,
+    detail: `Manually confirmed ${user.email}.`,
+  });
+  revalidatePath('/staff/users');
+  return { success: true, message: `${user.email} is now confirmed.` };
+}
+
 export async function verifyInstitution(institutionId: string): Promise<ActionResult> {
   const session = await requireSuperAdmin();
   if (!session) return { success: false, message: 'Only a super admin can verify institutions.' };

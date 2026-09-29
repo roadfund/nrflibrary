@@ -13,6 +13,7 @@ function toUser(row: {
   active: boolean;
   created_at: string;
   last_login_at: string | null;
+  email_verified_at: string | null;
 }): User {
   return {
     id: row.id,
@@ -23,9 +24,7 @@ function toUser(row: {
     institutionId: row.institution_id,
     organization: row.organization,
     fieldOfStudy: row.field_of_study,
-    // Not tracked on `profiles` - auth.users.email_confirmed_at is the
-    // source of truth, and only getSession() has access to that record.
-    emailVerified: true,
+    emailVerified: Boolean(row.email_verified_at),
     active: row.active,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
