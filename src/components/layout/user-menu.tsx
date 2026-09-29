@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useTransition } from 'react';
-import { Loader2, LogOut, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, Loader2, LogOut, User as UserIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { User } from '@/lib/types';
 import { signOut } from '@/lib/auth/actions';
+import { getAccountHomeHref } from '@/lib/navigation';
 
 function initials(name: string) {
   return name
@@ -45,6 +46,11 @@ export function UserMenu({ user }: { user: User }) {
         <div className="px-1.5 py-1.5">
           <span className="text-foreground text-sm font-medium">{user.name}</span>
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link href={getAccountHomeHref(user.role)} />}>
+          <LayoutDashboard />
+          Dashboard
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
