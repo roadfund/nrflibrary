@@ -81,7 +81,7 @@ describe('parsePaymentResponse', () => {
         exec_kind: 'success',
         resultset: {},
       }),
-    ).toEqual({ ok: false, message: 'Orange Money did not return a transaction id.' });
+    ).toEqual({ ok: false, message: 'The payment could not be started. Try again.' });
   });
 });
 

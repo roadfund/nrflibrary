@@ -18,9 +18,9 @@ export function OrangePaymentNotice({
 
   return (
     <div className="border-border mt-4 max-w-xl rounded-md border p-4">
-      <p className="text-foreground text-sm font-medium">Waiting for Orange Money</p>
+      <p className="text-foreground text-sm font-medium">Payment pending</p>
       <p className="text-muted-foreground mt-1 text-sm">
-        Approve the prompt on your phone. This page updates after Orange Money confirms the payment.
+        Check your phone and approve the prompt.
       </p>
       <Button
         className="mt-3"

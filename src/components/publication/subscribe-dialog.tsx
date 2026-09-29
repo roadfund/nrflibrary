@@ -2,9 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { toast } from 'sonner';
-import { CreditCard, Smartphone } from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,33 +15,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { createSubscription } from '@/lib/mock-data/mutations';
 import { refreshOrangeMoneyPayment } from '@/lib/payments/orange-money-actions';
+import {
+  phaseAfterPaymentCheck,
+  phaseAfterSubscribeStart,
+  type SubscribeDialogPhase,
+} from '@/lib/payments/subscribe-phase';
 import { formatCurrency } from '@/lib/format';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_TYPES } from '@/lib/types';
-import type { BillingInterval, Plan, PaymentMethodType } from '@/lib/types';
-
-const PAYMENT_METHOD_LOGOS: Partial<Record<PaymentMethodType, string>> = {
-  MOBILE_MONEY: '/momo.png',
-  ORANGE_MONEY: '/orangemoney.png',
-};
-
-function PaymentMethodIcon({ method }: { method: PaymentMethodType }) {
-  const logo = PAYMENT_METHOD_LOGOS[method];
-  if (logo) {
-    return <Image src={logo} alt="" width={20} height={20} className="rounded-sm object-contain" />;
-  }
-  return <CreditCard className="text-muted-foreground size-4" />;
-}
-
-const MOBILE_METHODS: PaymentMethodType[] = ['MOBILE_MONEY', 'ORANGE_MONEY'];
+import type { BillingInterval, Plan } from '@/lib/types';
 
 export function SubscribeDialog({
   ownerType,
@@ -52,7 +32,7 @@ export function SubscribeDialog({
   initialInterval = 'MONTHLY',
   triggerLabel = 'Subscribe',
   triggerClassName = 'w-full sm:w-auto',
-  redirectTo,
+  resumePending = false,
 }: {
   ownerType: 'USER' | 'INSTITUTION';
   ownerId: string;
@@ -60,39 +40,32 @@ export function SubscribeDialog({
   initialInterval?: BillingInterval;
   triggerLabel?: string;
   triggerClassName?: string;
-  redirectTo?: string;
+  resumePending?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | ''>('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phase, setPhase] = useState<SubscribeDialogPhase>('form');
+  const [statusMessage, setStatusMessage] = useState('');
   const [isPending, startTransition] = useTransition();
-  const [awaitingApproval, setAwaitingApproval] = useState(false);
 
   const price = billingInterval === 'MONTHLY' ? plan.monthlyPrice : plan.annualPrice;
   const period = billingInterval === 'MONTHLY' ? 'month' : 'year';
-  const needsPhoneNumber = paymentMethod !== '' && MOBILE_METHODS.includes(paymentMethod);
-  const canSubmit = paymentMethod !== '' && (!needsPhoneNumber || phoneNumber.trim().length >= 8);
+  const canSubmit = phoneNumber.trim().length >= 8;
 
   useEffect(() => {
-    if (!open || !awaitingApproval) return;
+    if (!open || phase !== 'pending') return;
     let stopped = false;
 
     async function poll() {
       const result = await refreshOrangeMoneyPayment(ownerType, ownerId);
       if (stopped) return;
-      if (result.status === 'ACTIVE') {
-        toast.success(result.message);
-        setOpen(false);
-        setAwaitingApproval(false);
-        if (redirectTo) router.push(redirectTo);
-        router.refresh();
-        return;
-      }
-      if (result.status === 'FAILED') {
-        toast.error(result.message);
-        setAwaitingApproval(false);
+      const next = phaseAfterPaymentCheck(result);
+      setStatusMessage(next.message);
+      if (next.phase !== 'pending') {
+        setPhase(next.phase);
+        if (next.phase === 'success') router.refresh();
       }
     }
 
@@ -102,144 +75,148 @@ export function SubscribeDialog({
       stopped = true;
       clearInterval(timer);
     };
-  }, [awaitingApproval, open, ownerId, ownerType, redirectTo, router]);
+  }, [open, ownerId, ownerType, phase, router]);
 
-  function onSubmit() {
+  function reset() {
+    setPhase('form');
+    setStatusMessage('');
+    setBillingInterval(initialInterval);
+  }
+
+  function pay() {
     if (!canSubmit) return;
-    const method = paymentMethod as PaymentMethodType;
     startTransition(async () => {
       const result = await createSubscription(
         ownerType,
         ownerId,
         plan.code,
         billingInterval,
-        method,
-        needsPhoneNumber ? phoneNumber.trim() : undefined,
+        'ORANGE_MONEY',
+        phoneNumber.trim(),
       );
-      if (result.success) {
-        if (result.awaitingApproval) {
-          toast.message('Approve the prompt on your Orange Money phone.');
-          setAwaitingApproval(true);
-          return;
-        }
-        toast.success(result.message);
-        setOpen(false);
-        if (redirectTo) router.push(redirectTo);
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      const next = phaseAfterSubscribeStart(result);
+      setStatusMessage(next.message);
+      setPhase(next.phase);
     });
+  }
+
+  function checkExistingPayment() {
+    setStatusMessage('Checking the payment on your phone.');
+    setPhase('pending');
   }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next) setBillingInterval(initialInterval);
-        if (!next) setAwaitingApproval(false);
         setOpen(next);
+        if (!next) reset();
       }}
     >
       <DialogTrigger render={<Button className={triggerClassName} />}>{triggerLabel}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Subscribe to {plan.name}</DialogTitle>
-          <DialogDescription>{plan.description}</DialogDescription>
-        </DialogHeader>
+        {phase === 'form' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Subscribe</DialogTitle>
+              <DialogDescription>
+                You will get a prompt on your phone to approve the payment.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={billingInterval === 'MONTHLY' ? 'default' : 'outline'}
+                  onClick={() => setBillingInterval('MONTHLY')}
+                >
+                  Monthly · {formatCurrency(plan.monthlyPrice, plan.currency)}
+                </Button>
+                <Button
+                  type="button"
+                  variant={billingInterval === 'ANNUAL' ? 'default' : 'outline'}
+                  onClick={() => setBillingInterval('ANNUAL')}
+                >
+                  Annual · {formatCurrency(plan.annualPrice, plan.currency)}
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="subscribe-phone">Mobile number</Label>
+                <Input
+                  id="subscribe-phone"
+                  icon={Smartphone}
+                  placeholder="0776 123 456"
+                  autoComplete="tel"
+                  value={phoneNumber}
+                  onChange={(event) => setPhoneNumber(event.target.value)}
+                />
+              </div>
+              <p className="text-foreground text-sm">
+                {plan.name} · {formatCurrency(price, plan.currency)} / {period}
+              </p>
+            </div>
+            <DialogFooter className="sm:flex-col sm:items-stretch">
+              <Button onClick={pay} disabled={!canSubmit} loading={isPending}>
+                Pay {formatCurrency(price, plan.currency)}
+              </Button>
+              {resumePending ? (
+                <Button type="button" variant="outline" onClick={checkExistingPayment}>
+                  Check your phone
+                </Button>
+              ) : null}
+            </DialogFooter>
+          </>
+        ) : null}
 
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>Billing</Label>
-              <Select
-                value={billingInterval}
-                onValueChange={(value) => setBillingInterval(value as BillingInterval)}
+        {phase === 'pending' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Payment pending</DialogTitle>
+              <DialogDescription>Check your phone and approve the payment.</DialogDescription>
+            </DialogHeader>
+          </>
+        ) : null}
+
+        {phase === 'success' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Payment received</DialogTitle>
+              <DialogDescription>Your subscription is active.</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpen(false);
+                  reset();
+                  router.refresh();
+                }}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(value: BillingInterval) => (value === 'ANNUAL' ? 'Annual' : 'Monthly')}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  <SelectItem value="ANNUAL">Annual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : null}
 
-            <div className="flex flex-col gap-1.5">
-              <Label>Payment method</Label>
-              <Select
-                value={paymentMethod}
-                onValueChange={(value) => setPaymentMethod(value as PaymentMethodType)}
+        {phase === 'error' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Payment failed</DialogTitle>
+              <DialogDescription>
+                {statusMessage || 'The payment did not go through. Try again.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setPhase('form');
+                  setStatusMessage('');
+                }}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select">
-                    {(value: PaymentMethodType | null) =>
-                      value ? PAYMENT_METHOD_LABELS[value] : 'Select'
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHOD_TYPES.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      <PaymentMethodIcon method={method} />
-                      {PAYMENT_METHOD_LABELS[method]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {needsPhoneNumber ? (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="subscribe-phone">Mobile money number</Label>
-              <Input
-                id="subscribe-phone"
-                icon={Smartphone}
-                placeholder="0776 123 456"
-                value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
-              />
-            </div>
-          ) : null}
-
-          {awaitingApproval ? (
-            <p className="text-muted-foreground text-sm">
-              Waiting for approval on {phoneNumber.trim()}. This stays open until Orange Money
-              confirms the payment.
-            </p>
-          ) : null}
-
-          <div className="bg-muted/40 rounded-lg p-4">
-            <div className="text-foreground flex items-center justify-between text-sm">
-              <span>
-                {plan.name} · {billingInterval === 'MONTHLY' ? 'monthly' : 'annually'}
-              </span>
-              <span>{formatCurrency(price, plan.currency)}</span>
-            </div>
-            <div className="border-border mt-3 flex items-center justify-between border-t pt-3">
-              <span className="text-foreground text-sm font-semibold">Total</span>
-              <span className="text-primary font-serif text-xl font-semibold">
-                {formatCurrency(price, plan.currency)}
-                <span className="text-muted-foreground text-sm font-normal"> / {period}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            onClick={onSubmit}
-            disabled={!canSubmit || awaitingApproval}
-            loading={isPending || awaitingApproval}
-          >
-            {paymentMethod === 'ORANGE_MONEY' ? 'Pay with Orange Money' : 'Subscribe'} -{' '}
-            {formatCurrency(price, plan.currency)}/{period}
-          </Button>
-        </DialogFooter>
+                Try again
+              </Button>
+            </DialogFooter>
+          </>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

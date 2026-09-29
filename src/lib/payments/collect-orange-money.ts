@@ -41,7 +41,7 @@ function gatewayOptions():
   | { ok: false; message: string } {
   const apiKey = process.env.ORANGE_MONEY_API_KEY;
   if (!apiKey) {
-    return { ok: false, message: 'Orange Money is not configured.' };
+    return { ok: false, message: 'Payment is not configured.' };
   }
   return { ok: true, baseUrl: orangeMoneyBaseUrl(), apiKey };
 }
@@ -81,7 +81,7 @@ export async function beginOrangeMoneySubscription(input: {
   if (!msisdn) {
     return {
       success: false,
-      message: 'Enter an Orange Money number, for example 0776 123 456.',
+      message: 'Enter a mobile number, for example 0776 123 456.',
     };
   }
 
@@ -123,7 +123,7 @@ export async function beginOrangeMoneySubscription(input: {
       current_period_start: now.toISOString(),
       current_period_end: end.toISOString(),
     });
-    if (error) return { success: false, message: 'Could not start the Orange Money payment.' };
+    if (error) return { success: false, message: 'Could not start the payment. Try again.' };
   } else {
     const { error } = await admin
       .from('subscriptions')
@@ -136,7 +136,7 @@ export async function beginOrangeMoneySubscription(input: {
       })
       .eq('id', subscriptionId)
       .eq('status', 'PENDING');
-    if (error) return { success: false, message: 'Could not start the Orange Money payment.' };
+    if (error) return { success: false, message: 'Could not start the payment. Try again.' };
   }
 
   const { error: voidError } = await admin
@@ -144,7 +144,7 @@ export async function beginOrangeMoneySubscription(input: {
     .update({ status: 'VOID' })
     .eq('subscription_id', subscriptionId)
     .eq('status', 'OPEN');
-  if (voidError) return { success: false, message: 'Could not start the Orange Money payment.' };
+  if (voidError) return { success: false, message: 'Could not start the payment. Try again.' };
 
   const invoiceId = newId('inv');
   const { error: invoiceError } = await admin.from('invoices').insert({
@@ -158,7 +158,7 @@ export async function beginOrangeMoneySubscription(input: {
     period_start: now.toISOString(),
     period_end: end.toISOString(),
   });
-  if (invoiceError) return { success: false, message: 'Could not start the Orange Money payment.' };
+  if (invoiceError) return { success: false, message: 'Could not start the payment. Try again.' };
 
   const started = await startOrangeCollection(
     { msisdn, currency, amount, externalId: invoiceId },
@@ -176,7 +176,7 @@ export async function beginOrangeMoneySubscription(input: {
   if (txnError) {
     return {
       success: false,
-      message: 'Orange Money sent a prompt, but the payment could not be recorded. Try again.',
+      message: 'The payment timed out. Try again.',
     };
   }
 
@@ -185,7 +185,7 @@ export async function beginOrangeMoneySubscription(input: {
   return {
     success: true,
     awaitingApproval: true,
-    message: 'Approve the payment prompt on your Orange Money phone.',
+    message: 'Check your phone and approve the payment.',
   };
 }
 
@@ -215,7 +215,7 @@ export async function syncStoredOrangePayment(subscriptionId: string): Promise<O
   if (subscription.payment_method_type !== 'ORANGE_MONEY' || !subscription.payment_txn_id) {
     return {
       success: false,
-      message: 'No Orange Money payment is waiting on this subscription.',
+      message: 'No payment is waiting.',
       status: 'FAILED',
     };
   }
@@ -250,7 +250,7 @@ export async function syncStoredOrangePayment(subscriptionId: string): Promise<O
   if (!remote.ok) {
     return {
       success: true,
-      message: 'Waiting for approval on your phone.',
+      message: 'Check your phone.',
       status: 'PENDING',
     };
   }
@@ -260,7 +260,7 @@ export async function syncStoredOrangePayment(subscriptionId: string): Promise<O
   if (outcome === 'PAID' && quoted && !quotedAmountMatches(quoted, remote.resultset)) {
     return {
       success: false,
-      message: 'The amount Orange Money reported does not match this invoice.',
+      message: 'The amount charged does not match this invoice.',
       status: 'FAILED',
     };
   }
@@ -344,7 +344,7 @@ export async function syncStoredOrangePayment(subscriptionId: string): Promise<O
   }
   return {
     success: false,
-    message: 'Orange Money declined the payment. You can try again.',
+    message: 'Payment failed. Try again.',
     status: 'FAILED',
   };
 }

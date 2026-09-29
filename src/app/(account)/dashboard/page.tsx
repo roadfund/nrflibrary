@@ -23,7 +23,9 @@ import {
   getPublications,
   getViewerSubscription,
 } from '@/lib/mock-data/queries';
-import { formatDateShort, formatNumber } from '@/lib/format';
+import { getAllPlans } from '@/lib/mock-data/plans';
+import { SubscribeDialog } from '@/components/publication/subscribe-dialog';
+import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -34,25 +36,42 @@ export default async function DashboardPage() {
     isInstitution && user.institutionId ? await getInstitutionById(user.institutionId) : undefined;
   const members = institution ? await getMembersByInstitution(institution.id) : [];
 
-  const [{ subscription }, downloads, savedItems, accessRequests, recent, institutionUsage] =
-    await Promise.all([
-      getViewerSubscription(
-        isInstitution ? 'INSTITUTION' : 'USER',
-        isInstitution ? (institution?.id ?? user.id) : user.id,
-        user.id,
-      ),
-      Promise.resolve(getDownloadsForUser(user.id)),
-      Promise.resolve(getSavedItemsForUser(user.id)),
-      Promise.resolve(getAccessRequestsForUser(user.id)),
-      getPublications({ sort: 'newest', pageSize: 4 }),
-      institution ? getInstitutionUsage(institution.id) : Promise.resolve(null),
-    ]);
+  const [
+    { subscription, raw: subscriptionRecord },
+    downloads,
+    savedItems,
+    accessRequests,
+    recent,
+    institutionUsage,
+    plans,
+  ] = await Promise.all([
+    getViewerSubscription(
+      isInstitution ? 'INSTITUTION' : 'USER',
+      isInstitution ? (institution?.id ?? user.id) : user.id,
+      user.id,
+    ),
+    Promise.resolve(getDownloadsForUser(user.id)),
+    Promise.resolve(getSavedItemsForUser(user.id)),
+    Promise.resolve(getAccessRequestsForUser(user.id)),
+    getPublications({ sort: 'newest', pageSize: 4 }),
+    institution ? getInstitutionUsage(institution.id) : Promise.resolve(null),
+    getAllPlans(),
+  ]);
 
   const pendingRequests = accessRequests.filter(
     (r) => r.status === 'PENDING' || r.status === 'NEEDS_INFO',
   );
   const activeMembers = members.filter((m) => m.status === 'ACTIVE').length;
   const memberCount = members.length;
+  const subscribePlan = plans.find((item) =>
+    isInstitution ? item.seatBased || item.code === 'STANDARD' : !item.seatBased,
+  );
+  const canPayHere =
+    user.role !== 'INSTITUTION_MEMBER' &&
+    Boolean(subscribePlan) &&
+    !subscriptionRecord?.grantedBy &&
+    (!subscriptionRecord || subscriptionRecord.status === 'PENDING');
+  const subscribeOwnerId = isInstitution ? (institution?.id ?? user.id) : user.id;
 
   return (
     <AccountShell user={user}>
@@ -62,6 +81,29 @@ export default async function DashboardPage() {
       />
 
       <EmailVerificationBanner user={user} />
+
+      {canPayHere && subscribePlan ? (
+        <div className="border-border mt-6 flex flex-col gap-3 rounded-md border p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground text-sm font-medium">
+              {subscriptionRecord?.status === 'PENDING' ? 'Finish your subscription' : 'Subscribe'}
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {subscriptionRecord?.status === 'PENDING'
+                ? 'A payment is waiting. Check your phone, or send a new prompt.'
+                : `${subscribePlan.name} is ${formatCurrency(subscribePlan.monthlyPrice, subscribePlan.currency)} a month.`}
+            </p>
+          </div>
+          <SubscribeDialog
+            ownerType={isInstitution ? 'INSTITUTION' : 'USER'}
+            ownerId={subscribeOwnerId}
+            plan={subscribePlan}
+            triggerLabel={subscriptionRecord?.status === 'PENDING' ? 'Finish payment' : 'Subscribe'}
+            triggerClassName="w-full sm:w-auto"
+            resumePending={subscriptionRecord?.status === 'PENDING'}
+          />
+        </div>
+      ) : null}
 
       {institution ? (
         institution.verified ? (

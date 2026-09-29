@@ -47,7 +47,6 @@ function PlanAction({
           initialInterval={interval}
           triggerLabel="Subscribe"
           triggerClassName="mt-6 w-full"
-          redirectTo={viewer.billingHref}
         />
       );
     case 'SUBSCRIBED':

@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AccountShell } from '@/components/layout/account-shell';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { MetadataList } from '@/components/shared/metadata-list';
 import { SubscriptionStatusBadge } from '@/components/shared/status-badges';
 import { InvoiceTable } from '@/components/billing/invoice-table';
 import { SubscriptionActions } from '@/components/billing/subscription-actions';
 import { OrangePaymentNotice } from '@/components/billing/orange-payment-notice';
+import { SubscribeDialog } from '@/components/publication/subscribe-dialog';
 import { requireInstitutionAdmin } from '@/lib/auth';
 import { getInstitutionById } from '@/lib/mock-data/institutions';
 import { getSubscriptionByOwner, getInvoicesBySubscription } from '@/lib/mock-data/subscriptions';
@@ -30,6 +29,8 @@ export default async function InstitutionBillingPage() {
     getAllPlans(),
   ]);
 
+  const subscribePlan = allPlans.find((item) => item.seatBased) ?? allPlans[0];
+
   return (
     <AccountShell user={user}>
       <PageHeader title="Billing & subscription" />
@@ -42,9 +43,14 @@ export default async function InstitutionBillingPage() {
           <p className="text-muted-foreground mt-1 text-sm">
             Subscribe to give your members full publication details and downloads.
           </p>
-          <Button className="mt-4" render={<Link href="/pricing" />}>
-            See plans
-          </Button>
+          {subscribePlan ? (
+            <SubscribeDialog
+              ownerType="INSTITUTION"
+              ownerId={institution.id}
+              plan={subscribePlan}
+              triggerClassName="mt-4"
+            />
+          ) : null}
         </div>
       ) : (
         <div className="mt-6 flex flex-col gap-10">

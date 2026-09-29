@@ -37,7 +37,7 @@ export async function refreshOrangeMoneyPayment(
   if (!subscription || subscription.paymentMethodType !== 'ORANGE_MONEY') {
     return {
       success: false,
-      message: 'No Orange Money payment is waiting on this subscription.',
+      message: 'No payment is waiting.',
       status: 'FAILED',
     };
   }

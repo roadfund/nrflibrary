@@ -89,7 +89,7 @@ export function parsePaymentResponse(body: unknown): ParsedPayment {
 
   const parsed = paymentResponseSchema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, message: 'Orange Money returned an unexpected response.' };
+    return { ok: false, message: 'The payment could not be completed. Try again.' };
   }
   if (parsed.data.exec_kind === 'error') {
     const detail = findTxnField(parsed.data.resultset, 'exectxt');
@@ -98,7 +98,7 @@ export function parsePaymentResponse(body: unknown): ParsedPayment {
 
   const txnId = findTxnField(parsed.data.resultset, 'txnid');
   if (!txnId) {
-    return { ok: false, message: 'Orange Money did not return a transaction id.' };
+    return { ok: false, message: 'The payment could not be started. Try again.' };
   }
   return { ok: true, txnId, execMsg: parsed.data.exec_msg };
 }
@@ -212,7 +212,7 @@ export async function queryOrangeCollectionStatus(
   );
   const parsed = paymentResponseSchema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, message: 'Orange Money returned an unexpected status response.' };
+    return { ok: false, message: 'The payment status could not be checked. Try again.' };
   }
   if (parsed.data.exec_kind === 'error') {
     const detail = findTxnField(parsed.data.resultset, 'exectxt');
