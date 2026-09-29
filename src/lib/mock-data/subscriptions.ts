@@ -13,6 +13,7 @@ function toSubscription(row: {
   seats_used: number | null;
   payment_method_type: Subscription['paymentMethodType'];
   payment_reference: string | null;
+  payment_txn_id: string | null;
   current_period_start: string;
   current_period_end: string;
   cancel_at_period_end: boolean;
@@ -37,6 +38,7 @@ function toSubscription(row: {
     seatsUsed: row.seats_used,
     paymentMethodType: row.payment_method_type,
     paymentReference: row.payment_reference,
+    paymentTxnId: row.payment_txn_id,
     currentPeriodStart: row.current_period_start,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,

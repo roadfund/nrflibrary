@@ -80,6 +80,7 @@ export interface Subscription {
   seatsUsed: number | null;
   paymentMethodType: PaymentMethodType | null;
   paymentReference: string | null;
+  paymentTxnId: string | null;
   currentPeriodStart: string;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;

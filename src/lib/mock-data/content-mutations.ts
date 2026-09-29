@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { newId } from '@/lib/ids';
 import { getSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { isStaffRole } from '@/lib/types/roles';
@@ -61,7 +62,7 @@ export async function createContentDraft(
   const data = parsed.data;
   const supabase = await createClient();
 
-  const id = `c_${Date.now()}`;
+  const id = newId('c');
   const slug = await uniqueSlug(supabase, data.title);
   const now = new Date().toISOString();
   // A real checksum means a file was actually uploaded via uploadContentFile()

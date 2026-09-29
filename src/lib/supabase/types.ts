@@ -20,7 +20,16 @@ import type { AuditAction } from '@/lib/types/audit';
 export interface Database {
   public: {
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      increment_content_download_count: {
+        Args: { item_id: string };
+        Returns: number;
+      };
+      record_content_view: {
+        Args: { item_id: string; viewer: string };
+        Returns: boolean;
+      };
+    };
     Tables: {
       profiles: {
         Row: {
@@ -153,6 +162,7 @@ export interface Database {
           seats_used: number | null;
           payment_method_type: PaymentMethodType | null;
           payment_reference: string | null;
+          payment_txn_id: string | null;
           current_period_start: string;
           current_period_end: string;
           cancel_at_period_end: boolean;
@@ -173,6 +183,7 @@ export interface Database {
           seats_used?: number | null;
           payment_method_type?: PaymentMethodType | null;
           payment_reference?: string | null;
+          payment_txn_id?: string | null;
           current_period_start: string;
           current_period_end: string;
           cancel_at_period_end?: boolean;

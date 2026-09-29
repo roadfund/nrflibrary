@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth';
+import { newId } from '@/lib/ids';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isStaffRole } from '@/lib/types/roles';
 import { GRANT_CATEGORY_LABELS } from '@/lib/types/plan';
@@ -113,7 +114,7 @@ export async function grantSubscription(input: GrantSubscriptionInput): Promise<
     ? await admin.from('subscriptions').update(fields).eq('id', existing.id)
     : await admin.from('subscriptions').insert({
         ...fields,
-        id: `sub_${Date.now()}`,
+        id: newId('sub'),
         owner_type: ownerType,
         owner_id: ownerId,
         billing_interval: 'ANNUAL',

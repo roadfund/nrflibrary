@@ -6,6 +6,7 @@ import { MetadataList } from '@/components/shared/metadata-list';
 import { SubscriptionStatusBadge } from '@/components/shared/status-badges';
 import { InvoiceTable } from '@/components/billing/invoice-table';
 import { SubscriptionActions } from '@/components/billing/subscription-actions';
+import { OrangePaymentNotice } from '@/components/billing/orange-payment-notice';
 import { Button } from '@/components/ui/button';
 import { requireIndividualSubscriber } from '@/lib/auth';
 import { getSubscriptionByOwner, getInvoicesBySubscription } from '@/lib/mock-data/subscriptions';
@@ -78,6 +79,11 @@ export default async function BillingPage() {
                 ]}
               />
             </div>
+            {subscription.status === 'PENDING' &&
+            subscription.paymentMethodType === 'ORANGE_MONEY' &&
+            !subscription.grantedBy ? (
+              <OrangePaymentNotice ownerType="USER" ownerId={user.id} />
+            ) : null}
           </div>
 
           {subscription.grantedBy ? (

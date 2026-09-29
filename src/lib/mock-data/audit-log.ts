@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { newId } from '@/lib/ids';
 import type { AuditAction, AuditLogEntry } from '@/lib/types';
 
 function toEntry(row: {
@@ -47,8 +48,8 @@ export async function logAudit(entry: {
   detail: string;
 }): Promise<void> {
   const supabase = await createClient();
-  await supabase.from('audit_log_entries').insert({
-    id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  const { error } = await supabase.from('audit_log_entries').insert({
+    id: newId('audit'),
     actor_id: entry.actorId,
     actor_name: entry.actorName,
     actor_role: entry.actorRole,
@@ -58,4 +59,5 @@ export async function logAudit(entry: {
     target_label: entry.targetLabel,
     detail: entry.detail,
   });
+  if (error) console.error('Audit log write failed.');
 }

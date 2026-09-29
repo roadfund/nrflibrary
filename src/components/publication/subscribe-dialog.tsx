@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createSubscription } from '@/lib/mock-data/mutations';
+import { refreshOrangeMoneyPayment } from '@/lib/payments/orange-money-actions';
 import { formatCurrency } from '@/lib/format';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_TYPES } from '@/lib/types';
 import type { BillingInterval, Plan, PaymentMethodType } from '@/lib/types';
@@ -63,15 +64,45 @@ export function SubscribeDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [interval, setInterval] = useState<BillingInterval>(initialInterval);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | ''>('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
 
-  const price = interval === 'MONTHLY' ? plan.monthlyPrice : plan.annualPrice;
-  const period = interval === 'MONTHLY' ? 'month' : 'year';
+  const price = billingInterval === 'MONTHLY' ? plan.monthlyPrice : plan.annualPrice;
+  const period = billingInterval === 'MONTHLY' ? 'month' : 'year';
   const needsPhoneNumber = paymentMethod !== '' && MOBILE_METHODS.includes(paymentMethod);
   const canSubmit = paymentMethod !== '' && (!needsPhoneNumber || phoneNumber.trim().length >= 8);
+
+  useEffect(() => {
+    if (!open || !awaitingApproval) return;
+    let stopped = false;
+
+    async function poll() {
+      const result = await refreshOrangeMoneyPayment(ownerType, ownerId);
+      if (stopped) return;
+      if (result.status === 'ACTIVE') {
+        toast.success(result.message);
+        setOpen(false);
+        setAwaitingApproval(false);
+        if (redirectTo) router.push(redirectTo);
+        router.refresh();
+        return;
+      }
+      if (result.status === 'FAILED') {
+        toast.error(result.message);
+        setAwaitingApproval(false);
+      }
+    }
+
+    void poll();
+    const timer = setInterval(() => void poll(), 4000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [awaitingApproval, open, ownerId, ownerType, redirectTo, router]);
 
   function onSubmit() {
     if (!canSubmit) return;
@@ -81,11 +112,16 @@ export function SubscribeDialog({
         ownerType,
         ownerId,
         plan.code,
-        interval,
+        billingInterval,
         method,
         needsPhoneNumber ? phoneNumber.trim() : undefined,
       );
       if (result.success) {
+        if (result.awaitingApproval) {
+          toast.message('Approve the prompt on your Orange Money phone.');
+          setAwaitingApproval(true);
+          return;
+        }
         toast.success(result.message);
         setOpen(false);
         if (redirectTo) router.push(redirectTo);
@@ -100,7 +136,8 @@ export function SubscribeDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next) setInterval(initialInterval);
+        if (next) setBillingInterval(initialInterval);
+        if (!next) setAwaitingApproval(false);
         setOpen(next);
       }}
     >
@@ -116,8 +153,8 @@ export function SubscribeDialog({
             <div className="flex flex-col gap-1.5">
               <Label>Billing</Label>
               <Select
-                value={interval}
-                onValueChange={(value) => setInterval(value as BillingInterval)}
+                value={billingInterval}
+                onValueChange={(value) => setBillingInterval(value as BillingInterval)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
@@ -169,10 +206,17 @@ export function SubscribeDialog({
             </div>
           ) : null}
 
+          {awaitingApproval ? (
+            <p className="text-muted-foreground text-sm">
+              Waiting for approval on {phoneNumber.trim()}. This stays open until Orange Money
+              confirms the payment.
+            </p>
+          ) : null}
+
           <div className="bg-muted/40 rounded-lg p-4">
             <div className="text-foreground flex items-center justify-between text-sm">
               <span>
-                {plan.name} · {interval === 'MONTHLY' ? 'monthly' : 'annually'}
+                {plan.name} · {billingInterval === 'MONTHLY' ? 'monthly' : 'annually'}
               </span>
               <span>{formatCurrency(price, plan.currency)}</span>
             </div>
@@ -187,8 +231,13 @@ export function SubscribeDialog({
         </div>
 
         <DialogFooter>
-          <Button onClick={onSubmit} disabled={!canSubmit} loading={isPending}>
-            Subscribe - {formatCurrency(price, plan.currency)}/{period}
+          <Button
+            onClick={onSubmit}
+            disabled={!canSubmit || awaitingApproval}
+            loading={isPending || awaitingApproval}
+          >
+            {paymentMethod === 'ORANGE_MONEY' ? 'Pay with Orange Money' : 'Subscribe'} -{' '}
+            {formatCurrency(price, plan.currency)}/{period}
           </Button>
         </DialogFooter>
       </DialogContent>

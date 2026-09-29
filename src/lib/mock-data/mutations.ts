@@ -1,7 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { newId } from '@/lib/ids';
+import { resultFromWrite } from '@/lib/data/write-result';
 import { getSession } from '@/lib/auth';
+import { beginOrangeMoneySubscription } from '@/lib/payments/collect-orange-money';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { evaluateAccess } from '@/lib/access-control';
@@ -24,6 +27,19 @@ import type {
 export interface ActionResult {
   success: boolean;
   message: string;
+  awaitingApproval?: boolean;
+}
+
+function saved(
+  result: { error: { message: string } | null; data: readonly { id: string }[] | null },
+  successMessage: string,
+  failureMessage: string,
+): ActionResult {
+  return resultFromWrite(
+    { error: result.error, rowCount: result.data?.length ?? 0 },
+    successMessage,
+    failureMessage,
+  );
 }
 
 export async function submitAccessRequest(input: AccessRequestInput): Promise<ActionResult> {
@@ -54,7 +70,7 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<Ac
 
   const supabase = await createClient();
   const { error } = await supabase.from('access_requests').insert({
-    id: `areq_${Date.now()}`,
+    id: newId('areq'),
     content_item_id: item.id,
     content_title: item.title,
     user_id: session.user.id,
@@ -89,20 +105,32 @@ export async function toggleSavedItem(contentItemId: string): Promise<ActionResu
   const alreadySaved = await isItemSaved(session.user.id, contentItemId);
 
   if (alreadySaved) {
-    await supabase
-      .from('saved_items')
-      .delete()
-      .eq('user_id', session.user.id)
-      .eq('content_item_id', contentItemId);
+    const removed = saved(
+      await supabase
+        .from('saved_items')
+        .delete()
+        .eq('user_id', session.user.id)
+        .eq('content_item_id', contentItemId)
+        .select('id'),
+      'Removed from saved items.',
+      'Could not update your saved items.',
+    );
+    if (!removed.success) return removed;
     revalidatePath('/saved');
-    return { success: true, message: 'Removed from saved items.' };
+    return removed;
   }
 
-  await supabase
-    .from('saved_items')
-    .insert({ id: `save_${Date.now()}`, user_id: session.user.id, content_item_id: contentItemId });
+  const inserted = saved(
+    await supabase
+      .from('saved_items')
+      .insert({ id: newId('save'), user_id: session.user.id, content_item_id: contentItemId })
+      .select('id'),
+    'Saved to your reading list.',
+    'Could not update your saved items.',
+  );
+  if (!inserted.success) return inserted;
   revalidatePath('/saved');
-  return { success: true, message: 'Saved to your reading list.' };
+  return inserted;
 }
 
 type ViewerPermission = 'canDownload' | 'canPreview';
@@ -161,25 +189,32 @@ export async function recordDownload(contentItemId: string): Promise<DownloadRes
   }
 
   const session = await getSession();
-
-  // content_items writes are staff-only under RLS; any subscriber (or anonymous visitor
-  // for PUBLIC items) can trigger this increment.
   const admin = createAdminClient();
-  await admin
-    .from('content_items')
-    .update({ download_count: item.downloadCount + 1 })
-    .eq('id', item.id);
 
-  // download_records requires a real user_id - anonymous PUBLIC downloads have none to log.
   if (session) {
     const supabase = await createClient();
-    await supabase.from('download_records').insert({
-      id: `dl_${Date.now()}`,
-      user_id: session.user.id,
-      content_item_id: item.id,
-      content_title: item.title,
-      version_number: item.versionNumber,
-    });
+    const recorded = saved(
+      await supabase
+        .from('download_records')
+        .insert({
+          id: newId('dl'),
+          user_id: session.user.id,
+          content_item_id: item.id,
+          content_title: item.title,
+          version_number: item.versionNumber,
+        })
+        .select('id'),
+      'Download recorded.',
+      'Could not record the download. Try again.',
+    );
+    if (!recorded.success) return recorded;
+  }
+
+  const { error: countError } = await admin.rpc('increment_content_download_count', {
+    item_id: item.id,
+  });
+  if (countError) {
+    return { success: false, message: 'Could not record the download. Try again.' };
   }
 
   revalidatePath('/downloads');
@@ -282,6 +317,16 @@ export async function createSubscription(
     };
   }
 
+  if (paymentMethodType === 'ORANGE_MONEY') {
+    return beginOrangeMoneySubscription({
+      ownerType,
+      ownerId,
+      planCode,
+      billingInterval,
+      phone: paymentReference ?? '',
+    });
+  }
+
   const existing = await getSubscriptionByOwner(ownerType, ownerId);
   if (existing)
     return { success: false, message: 'A subscription already exists for this account.' };
@@ -297,7 +342,7 @@ export async function createSubscription(
   // subscriptions inserts are staff-only under RLS; self-service signup goes through the admin client.
   const admin = createAdminClient();
   const { error } = await admin.from('subscriptions').insert({
-    id: `sub_${Date.now()}`,
+    id: newId('sub'),
     owner_type: ownerType,
     owner_id: ownerId,
     plan_id: plan.id,
@@ -329,17 +374,20 @@ export async function cancelSubscription(
   if (!subscription) return { success: false, message: 'Subscription not found.' };
 
   const supabase = await createClient();
-  await supabase
-    .from('subscriptions')
-    .update({ cancel_at_period_end: true })
-    .eq('id', subscription.id);
+  const result = saved(
+    await supabase
+      .from('subscriptions')
+      .update({ cancel_at_period_end: true })
+      .eq('id', subscription.id)
+      .select('id'),
+    'Subscription set to cancel at the end of the current billing period.',
+    'Could not update the subscription.',
+  );
+  if (!result.success) return result;
 
   revalidatePath('/billing');
   revalidatePath('/institution/billing');
-  return {
-    success: true,
-    message: 'Subscription set to cancel at the end of the current billing period.',
-  };
+  return result;
 }
 
 export async function resumeSubscription(
@@ -350,25 +398,31 @@ export async function resumeSubscription(
   if (!subscription) return { success: false, message: 'Subscription not found.' };
 
   const supabase = await createClient();
-  await supabase
-    .from('subscriptions')
-    .update({ cancel_at_period_end: false })
-    .eq('id', subscription.id);
+  const result = saved(
+    await supabase
+      .from('subscriptions')
+      .update({ cancel_at_period_end: false })
+      .eq('id', subscription.id)
+      .select('id'),
+    'Subscription renewal resumed.',
+    'Could not update the subscription.',
+  );
+  if (!result.success) return result;
 
   revalidatePath('/billing');
   revalidatePath('/institution/billing');
-  return { success: true, message: 'Subscription renewal resumed.' };
+  return result;
 }
 
 export async function recordContentView(contentItemId: string): Promise<void> {
+  const session = await getSession();
+  if (!session) return;
+
   const item = await getContentById(contentItemId);
   if (!item || item.status !== 'PUBLISHED') return;
 
   const admin = createAdminClient();
-  await admin
-    .from('content_items')
-    .update({ view_count: item.viewCount + 1 })
-    .eq('id', item.id);
+  await admin.rpc('record_content_view', { item_id: item.id, viewer: session.user.id });
 }
 
 export async function changePlan(
@@ -384,15 +438,18 @@ export async function changePlan(
   if (!plan) return { success: false, message: 'Plan not found.' };
 
   const supabase = await createClient();
-  await supabase
-    .from('subscriptions')
-    .update({ plan_id: plan.id, plan_code: plan.code, billing_interval: billingInterval })
-    .eq('id', subscription.id);
+  const result = saved(
+    await supabase
+      .from('subscriptions')
+      .update({ plan_id: plan.id, plan_code: plan.code, billing_interval: billingInterval })
+      .eq('id', subscription.id)
+      .select('id'),
+    `Plan changed to ${plan.name}, billed ${billingInterval === 'MONTHLY' ? 'monthly' : 'annually'}.`,
+    'Could not update the subscription.',
+  );
+  if (!result.success) return result;
 
   revalidatePath('/billing');
   revalidatePath('/institution/billing');
-  return {
-    success: true,
-    message: `Plan changed to ${plan.name}, billed ${billingInterval === 'MONTHLY' ? 'monthly' : 'annually'}.`,
-  };
+  return result;
 }
