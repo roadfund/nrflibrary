@@ -12,19 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { changeUserRole, toggleUserActive } from '@/lib/mock-data/user-mutations';
+import { changeUserRole } from '@/lib/mock-data/user-mutations';
 import { ROLE_LABELS, ROLES, type Role } from '@/lib/types';
 
 export function UserRoleControl({
   userId,
   currentRole,
   currentIsReviewer,
-  active,
 }: {
   userId: string;
   currentRole: Role;
   currentIsReviewer: boolean;
-  active: boolean;
 }) {
   const [role, setRole] = useState<Role>(currentRole);
   const [isReviewer, setIsReviewer] = useState(currentIsReviewer);
@@ -73,21 +71,6 @@ export function UserRoleControl({
           Save
         </Button>
       ) : null}
-      <Button
-        size="sm"
-        variant="ghost"
-        className={active ? 'text-destructive' : ''}
-        loading={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await toggleUserActive(userId);
-            if (result.success) toast.success(result.message);
-            else toast.error(result.message);
-          })
-        }
-      >
-        {active ? 'Suspend' : 'Reactivate'}
-      </Button>
     </div>
   );
 }

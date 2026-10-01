@@ -48,3 +48,15 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
   const { data } = await supabase.from('profiles').select('*').ilike('email', email).maybeSingle();
   return data ? toUser(data) : undefined;
 }
+
+export async function getContentOwnerIds(): Promise<Set<string>> {
+  const supabase = await createClient();
+  const [{ data: items }, { data: versions }] = await Promise.all([
+    supabase.from('content_items').select('owner_user_id'),
+    supabase.from('content_versions').select('uploaded_by_user_id'),
+  ]);
+  return new Set([
+    ...(items ?? []).map((row) => row.owner_user_id as string),
+    ...(versions ?? []).map((row) => row.uploaded_by_user_id as string),
+  ]);
+}

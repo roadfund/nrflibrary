@@ -10,10 +10,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { UserRoleControl } from '@/components/staff/user-role-control';
+import { UserActionsMenu } from '@/components/staff/user-actions-menu';
 import { AddStaffForm } from '@/components/staff/add-staff-form';
 import { ConfirmEmailButton } from '@/components/staff/confirm-email-button';
 import { requireStaff } from '@/lib/auth';
-import { getAllProfiles } from '@/lib/mock-data/users';
+import { getAllProfiles, getContentOwnerIds } from '@/lib/mock-data/users';
 import { ROLE_LABELS } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 
@@ -22,7 +23,10 @@ export const metadata: Metadata = { title: 'User management' };
 export default async function UsersPage() {
   const { user: viewer } = await requireStaff();
   const isSuperAdmin = viewer.role === 'SUPER_ADMIN';
-  const sorted = await getAllProfiles();
+  const [sorted, contentOwnerIds] = await Promise.all([getAllProfiles(), getContentOwnerIds()]);
+  const staffOptions = sorted
+    .filter((user) => user.active && (user.role === 'SUPER_ADMIN' || user.role === 'PUBLISHER'))
+    .map((user) => ({ id: user.id, name: user.name }));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
@@ -42,6 +46,11 @@ export default async function UsersPage() {
               <TableHead>User</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead>{isSuperAdmin ? 'Role' : 'Role & status'}</TableHead>
+              {isSuperAdmin ? (
+                <TableHead className="w-12">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -50,6 +59,11 @@ export default async function UsersPage() {
                 <TableCell>
                   <p className="text-foreground font-medium">{user.name}</p>
                   <p className="text-muted-foreground text-xs">{user.email}</p>
+                  {isSuperAdmin && !user.active ? (
+                    <Badge variant="destructive" className="mt-1.5">
+                      Suspended
+                    </Badge>
+                  ) : null}
                   {!user.emailVerified ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       <Badge variant="warning">Email not confirmed</Badge>
@@ -66,7 +80,6 @@ export default async function UsersPage() {
                       userId={user.id}
                       currentRole={user.role}
                       currentIsReviewer={user.isReviewer}
-                      active={user.active}
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -75,6 +88,19 @@ export default async function UsersPage() {
                     </div>
                   )}
                 </TableCell>
+                {isSuperAdmin ? (
+                  <TableCell className="text-right">
+                    <UserActionsMenu
+                      userId={user.id}
+                      name={user.name}
+                      email={user.email}
+                      active={user.active}
+                      isSelf={user.id === viewer.id}
+                      ownsContent={contentOwnerIds.has(user.id)}
+                      staffOptions={staffOptions.filter((option) => option.id !== user.id)}
+                    />
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
