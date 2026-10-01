@@ -45,13 +45,18 @@ import {
   toggleUserActive,
   updateUser,
 } from '@/lib/mock-data/user-mutations';
-import { ROLE_LABELS, ROLES, isStaffRole, type Role } from '@/lib/types';
+import { ROLE_LABELS, ROLES, type Role } from '@/lib/types';
+import { isInstitutionRole } from '@/lib/types/roles';
 import { updateUserSchema, type UpdateUserInput } from '@/lib/validation/staff';
 
-const ROLE_GROUPS = [
-  { label: 'Staff', roles: ROLES.filter((role) => isStaffRole(role)) },
-  { label: 'Members', roles: ROLES.filter((role) => !isStaffRole(role)) },
-];
+const USUAL_ROLE_CHANGES: Record<Role, Role[]> = {
+  SUPER_ADMIN: ['PUBLISHER'],
+  PUBLISHER: ['SUPER_ADMIN'],
+  STUDENT: ['RESEARCHER'],
+  RESEARCHER: ['STUDENT'],
+  INSTITUTION_ADMIN: ['INSTITUTION_MEMBER'],
+  INSTITUTION_MEMBER: ['INSTITUTION_ADMIN'],
+};
 
 export function UserActionsMenu({
   userId,
@@ -59,6 +64,7 @@ export function UserActionsMenu({
   email,
   role,
   isReviewer,
+  hasInstitution,
   active,
   isSelf,
   ownsContent,
@@ -69,6 +75,7 @@ export function UserActionsMenu({
   email: string;
   role: Role;
   isReviewer: boolean;
+  hasInstitution: boolean;
   active: boolean;
   isSelf: boolean;
   ownsContent: boolean;
@@ -78,6 +85,10 @@ export function UserActionsMenu({
   const [roleOpen, setRoleOpen] = useState(false);
   const [nextRole, setNextRole] = useState<Role>(role);
   const [nextIsReviewer, setNextIsReviewer] = useState(isReviewer);
+  const [showAllRoles, setShowAllRoles] = useState(false);
+  const roleOptions = showAllRoles
+    ? ROLES.filter((option) => option !== role && (hasInstitution || !isInstitutionRole(option)))
+    : USUAL_ROLE_CHANGES[role];
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reassignTo, setReassignTo] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -121,6 +132,7 @@ export function UserActionsMenu({
             onClick={() => {
               setNextRole(role);
               setNextIsReviewer(isReviewer);
+              setShowAllRoles(false);
               setRoleOpen(true);
             }}
           >
@@ -199,39 +211,42 @@ export function UserActionsMenu({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change role</DialogTitle>
-            <DialogDescription>Choose what {name} can do on the platform.</DialogDescription>
+            <DialogDescription>
+              {name} is currently {ROLE_LABELS[role]}
+              {role === 'PUBLISHER' && isReviewer ? ' with reviewer permission' : ''}.
+            </DialogDescription>
           </DialogHeader>
-          <RadioGroup
-            value={nextRole}
-            onValueChange={(value) => setNextRole(value as Role)}
-            className="gap-4"
-          >
-            {ROLE_GROUPS.map((group) => (
-              <div key={group.label} className="flex flex-col gap-2">
-                <p className="text-muted-foreground text-xs font-medium">{group.label}</p>
-                {group.roles.map((option) => (
-                  <div key={option} className="flex items-center gap-2">
-                    <RadioGroupItem id={`role-${userId}-${option}`} value={option} />
-                    <Label htmlFor={`role-${userId}-${option}`} className="text-sm font-normal">
-                      {ROLE_LABELS[option]}
-                    </Label>
-                  </div>
-                ))}
-                {group.label === 'Staff' && nextRole === 'PUBLISHER' ? (
-                  <div className="ml-6 flex items-center gap-1.5">
-                    <Checkbox
-                      id={`reviewer-${userId}`}
-                      checked={nextIsReviewer}
-                      onCheckedChange={(value) => setNextIsReviewer(!!value)}
-                    />
-                    <Label htmlFor={`reviewer-${userId}`} className="text-sm font-normal">
-                      Can review and approve restricted publications
-                    </Label>
-                  </div>
-                ) : null}
+          <RadioGroup value={nextRole} onValueChange={(value) => setNextRole(value as Role)}>
+            {roleOptions.map((option) => (
+              <div key={option} className="flex items-center gap-2">
+                <RadioGroupItem id={`role-${userId}-${option}`} value={option} />
+                <Label htmlFor={`role-${userId}-${option}`} className="text-sm font-normal">
+                  {ROLE_LABELS[option]}
+                </Label>
               </div>
             ))}
           </RadioGroup>
+          {nextRole === 'PUBLISHER' ? (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`reviewer-${userId}`}
+                checked={nextIsReviewer}
+                onCheckedChange={(value) => setNextIsReviewer(!!value)}
+              />
+              <Label htmlFor={`reviewer-${userId}`} className="text-sm font-normal">
+                Can review and approve restricted publications
+              </Label>
+            </div>
+          ) : null}
+          {!showAllRoles ? (
+            <button
+              type="button"
+              className="text-primary self-start text-sm font-medium hover:underline"
+              onClick={() => setShowAllRoles(true)}
+            >
+              Show all roles
+            </button>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleOpen(false)}>
               Cancel

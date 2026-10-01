@@ -92,6 +92,7 @@ export default async function UsersPage() {
                       email={user.email}
                       role={user.role}
                       isReviewer={user.isReviewer}
+                      hasInstitution={Boolean(user.institutionId)}
                       active={user.active}
                       isSelf={user.id === viewer.id}
                       ownsContent={contentOwnerIds.has(user.id)}
