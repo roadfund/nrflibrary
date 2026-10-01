@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { Mail, MoreHorizontal, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -37,13 +39,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { deleteUser, toggleUserActive, updateUser } from '@/lib/mock-data/user-mutations';
+import {
+  changeUserRole,
+  deleteUser,
+  toggleUserActive,
+  updateUser,
+} from '@/lib/mock-data/user-mutations';
+import { ROLE_LABELS, ROLES, isStaffRole, type Role } from '@/lib/types';
 import { updateUserSchema, type UpdateUserInput } from '@/lib/validation/staff';
+
+const ROLE_GROUPS = [
+  { label: 'Staff', roles: ROLES.filter((role) => isStaffRole(role)) },
+  { label: 'Members', roles: ROLES.filter((role) => !isStaffRole(role)) },
+];
 
 export function UserActionsMenu({
   userId,
   name,
   email,
+  role,
+  isReviewer,
   active,
   isSelf,
   ownsContent,
@@ -52,12 +67,17 @@ export function UserActionsMenu({
   userId: string;
   name: string;
   email: string;
+  role: Role;
+  isReviewer: boolean;
   active: boolean;
   isSelf: boolean;
   ownsContent: boolean;
   staffOptions: { id: string; name: string }[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [nextRole, setNextRole] = useState<Role>(role);
+  const [nextIsReviewer, setNextIsReviewer] = useState(isReviewer);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reassignTo, setReassignTo] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -96,6 +116,15 @@ export function UserActionsMenu({
             }}
           >
             Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setNextRole(role);
+              setNextIsReviewer(isReviewer);
+              setRoleOpen(true);
+            }}
+          >
+            Change role
           </DropdownMenuItem>
           <DropdownMenuItem
             variant={active ? 'destructive' : 'default'}
@@ -163,6 +192,68 @@ export function UserActionsMenu({
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change role</DialogTitle>
+            <DialogDescription>Choose what {name} can do on the platform.</DialogDescription>
+          </DialogHeader>
+          <RadioGroup
+            value={nextRole}
+            onValueChange={(value) => setNextRole(value as Role)}
+            className="gap-4"
+          >
+            {ROLE_GROUPS.map((group) => (
+              <div key={group.label} className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-xs font-medium">{group.label}</p>
+                {group.roles.map((option) => (
+                  <div key={option} className="flex items-center gap-2">
+                    <RadioGroupItem id={`role-${userId}-${option}`} value={option} />
+                    <Label htmlFor={`role-${userId}-${option}`} className="text-sm font-normal">
+                      {ROLE_LABELS[option]}
+                    </Label>
+                  </div>
+                ))}
+                {group.label === 'Staff' && nextRole === 'PUBLISHER' ? (
+                  <div className="ml-6 flex items-center gap-1.5">
+                    <Checkbox
+                      id={`reviewer-${userId}`}
+                      checked={nextIsReviewer}
+                      onCheckedChange={(value) => setNextIsReviewer(!!value)}
+                    />
+                    <Label htmlFor={`reviewer-${userId}`} className="text-sm font-normal">
+                      Can review and approve restricted publications
+                    </Label>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </RadioGroup>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={nextRole === role && nextIsReviewer === isReviewer}
+              loading={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await changeUserRole(userId, nextRole, nextIsReviewer);
+                  if (result.success) {
+                    toast.success(result.message);
+                    setRoleOpen(false);
+                  } else {
+                    toast.error(result.message);
+                  }
+                })
+              }
+            >
+              Save role
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

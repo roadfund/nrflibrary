@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { UserRoleControl } from '@/components/staff/user-role-control';
 import { UserActionsMenu } from '@/components/staff/user-actions-menu';
 import { AddStaffForm } from '@/components/staff/add-staff-form';
 import { ConfirmEmailButton } from '@/components/staff/confirm-email-button';
@@ -75,18 +74,15 @@ export default async function UsersPage() {
                   {formatDate(user.createdAt)}
                 </TableCell>
                 <TableCell>
-                  {isSuperAdmin ? (
-                    <UserRoleControl
-                      userId={user.id}
-                      currentRole={user.role}
-                      currentIsReviewer={user.isReviewer}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
-                      {!user.active ? <Badge variant="destructive">Suspended</Badge> : null}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
+                    {user.role === 'PUBLISHER' && user.isReviewer ? (
+                      <Badge variant="secondary">Reviewer</Badge>
+                    ) : null}
+                    {!isSuperAdmin && !user.active ? (
+                      <Badge variant="destructive">Suspended</Badge>
+                    ) : null}
+                  </div>
                 </TableCell>
                 {isSuperAdmin ? (
                   <TableCell className="text-right">
@@ -94,6 +90,8 @@ export default async function UsersPage() {
                       userId={user.id}
                       name={user.name}
                       email={user.email}
+                      role={user.role}
+                      isReviewer={user.isReviewer}
                       active={user.active}
                       isSelf={user.id === viewer.id}
                       ownsContent={contentOwnerIds.has(user.id)}
