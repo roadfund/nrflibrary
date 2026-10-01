@@ -90,6 +90,21 @@ export async function changeUserRole(
   if (!session) return { success: false, message: 'Only a super admin can change roles.' };
 
   const supabase = await createClient();
+  if (role === 'INSTITUTION_ADMIN' || role === 'INSTITUTION_MEMBER') {
+    const { data: target } = await supabase
+      .from('profiles')
+      .select('institution_id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!target?.institution_id) {
+      return {
+        success: false,
+        message:
+          'This user does not belong to an institution, so they cannot hold an institution role.',
+      };
+    }
+  }
+
   const { data: user, error } = await supabase
     .from('profiles')
     .update({ role, is_reviewer: role === 'PUBLISHER' ? isReviewer : false })
